@@ -1,0 +1,36 @@
+{
+  "name": "queue-api",
+  "version": "1.0.0",
+  "description": "Doctor Desk Navigation System API",
+  "main": "server.js",
+  "scripts": {
+    "start": "node scripts/start.js && node server.js",
+    "dev": "nodemon server.js",
+    "setup": "node scripts/setup.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "queue",
+    "hospital",
+    "api",
+    "mssql"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "express": "^4.17.3",
+    "mssql": "^7.3.1",
+    "cors": "^2.8.5",
+    "helmet": "^5.1.1",
+    "morgan": "^1.10.0",
+    "dotenv": "^16.0.1",
+    "express-rate-limit": "^6.4.0",
+    "joi": "^17.6.4"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.15"
+  },
+  "engines": {
+    "node": ">=12.22.12"
+  }
+}
