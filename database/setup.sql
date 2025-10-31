@@ -7,19 +7,29 @@ GO
 -- Create examination_rooms table (ห้องตรวจแพทย์)
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='examination_rooms' AND xtype='U')
 BEGIN
-    CREATE TABLE examination_rooms (
-        id NVARCHAR(200) PRIMARY KEY,
-        room_number NVARCHAR(10) NOT NULL UNIQUE,
-        room_name NVARCHAR(100) NOT NULL,
-        department NVARCHAR(100) NOT NULL,
-        floor NVARCHAR(10) NOT NULL,
-        capacity INT DEFAULT 20,
-        status NVARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
-        current_queue INT DEFAULT 0,
-        doctor_id NVARCHAR(50) NULL,
-        created_at DATETIME2 DEFAULT GETDATE(),
-        updated_at DATETIME2 DEFAULT GETDATE()
-    );
+CREATE TABLE examination_rooms (
+    id INT IDENTITY(1,1) PRIMARY KEY,
+    room_number NVARCHAR(10) NOT NULL UNIQUE,
+    room_name NVARCHAR(100) NOT NULL,
+    department NVARCHAR(100) NOT NULL,
+    floor NVARCHAR(10) NOT NULL,
+    capacity INT DEFAULT 20,
+    status NVARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+    current_queue INT DEFAULT 0,
+    doctor_id NVARCHAR(50) NULL,
+    created_at VARCHAR(12) 
+        DEFAULT (
+            CONVERT(CHAR(8), GETDATE(), 112) + 
+            RIGHT('0' + CAST(DATEPART(HOUR, GETDATE()) AS VARCHAR(2)), 2) +
+            RIGHT('0' + CAST(DATEPART(MINUTE, GETDATE()) AS VARCHAR(2)), 2)
+        ),
+    updated_at VARCHAR(12) 
+        DEFAULT (
+            CONVERT(CHAR(8), GETDATE(), 112) + 
+            RIGHT('0' + CAST(DATEPART(HOUR, GETDATE()) AS VARCHAR(2)), 2) +
+            RIGHT('0' + CAST(DATEPART(MINUTE, GETDATE()) AS VARCHAR(2)), 2)
+        )
+);
 
     -- Create indexes
     CREATE INDEX idx_department ON examination_rooms (department);
@@ -36,13 +46,17 @@ BEGIN
         id INT IDENTITY(1,1) PRIMARY KEY,
         hn NVARCHAR(20) NOT NULL,
         patient_name NVARCHAR(200) NOT NULL,
-        room_id NVARCHAR(200),
+        room_id INT,
         queue_number INT,
-        status NVARCHAR(20) DEFAULT 'waiting' CHECK (status IN ('waiting', 'active', 'completed', 'cancelled')),
+        status NVARCHAR(20) DEFAULT 'waiting' CHECK (status IN ('waiting', 'queued', 'completed', 'cancelled')),
         department NVARCHAR(100) NOT NULL,
-        arrival_time DATETIME2 DEFAULT GETDATE(),
-        called_time DATETIME2 NULL,
-        completed_time DATETIME2 NULL,
+        arrival_time VARCHAR(12) DEFAULT (
+            CONVERT(CHAR(8), GETDATE(), 112) +
+            RIGHT('0' + CAST(DATEPART(HOUR, GETDATE()) AS VARCHAR(2)), 2) +
+            RIGHT('0' + CAST(DATEPART(MINUTE, GETDATE()) AS VARCHAR(2)), 2)
+        ),
+        called_time VARCHAR(12) NULL,
+        completed_time VARCHAR(12) NULL,
         priority_level NVARCHAR(20) DEFAULT 'normal' CHECK (priority_level IN ('normal', 'urgent', 'emergency'))
 
         -- Add foreign key constraint
@@ -67,21 +81,16 @@ BEGIN
         id INT IDENTITY(1,1) PRIMARY KEY,
         patient_queue_id INT NOT NULL,
         action NVARCHAR(20) NOT NULL CHECK (action IN ('created', 'called', 'completed', 'cancelled', 'transferred')),
-        from_room_id NVARCHAR(200) NULL,
-        to_room_id NVARCHAR(200) NULL,
+        from_room_id INT NULL,
+        to_room_id INT NULL,
         performed_by NVARCHAR(50) NOT NULL,
-        action_time DATETIME2 DEFAULT GETDATE(),
+        action_time VARCHAR(12) DEFAULT (
+            CONVERT(CHAR(8), GETDATE(), 112) +
+            RIGHT('0' + CAST(DATEPART(HOUR, GETDATE()) AS VARCHAR(2)), 2) +
+            RIGHT('0' + CAST(DATEPART(MINUTE, GETDATE()) AS VARCHAR(2)), 2)
+        ),
         notes NVARCHAR(MAX) NULL,
 
-        -- Add foreign key constraints
-        CONSTRAINT FK_queue_history_patient_queue_id 
-        FOREIGN KEY (patient_queue_id) REFERENCES patient_queues(id) ON DELETE CASCADE,
-        
-        CONSTRAINT FK_queue_history_from_room_id 
-        FOREIGN KEY (from_room_id) REFERENCES examination_rooms(id) ON DELETE SET NULL,
-        
-        CONSTRAINT FK_queue_history_to_room_id 
-        FOREIGN KEY (to_room_id) REFERENCES examination_rooms(id) ON DELETE SET NULL
     );
 
     -- Create indexes
@@ -102,8 +111,16 @@ BEGIN
         auto_call_enabled BIT DEFAULT 1,
         call_interval_minutes INT DEFAULT 5,
         is_active BIT DEFAULT 1,
-        created_at DATETIME2 DEFAULT GETDATE(),
-        updated_at DATETIME2 DEFAULT GETDATE()
+        created_at VARCHAR(12) DEFAULT (
+            CONVERT(CHAR(8), GETDATE(), 112) +
+            RIGHT('0' + CAST(DATEPART(HOUR, GETDATE()) AS VARCHAR(2)), 2) +
+            RIGHT('0' + CAST(DATEPART(MINUTE, GETDATE()) AS VARCHAR(2)), 2)
+        ),
+        updated_at VARCHAR(12) DEFAULT (
+            CONVERT(CHAR(8), GETDATE(), 112) +
+            RIGHT('0' + CAST(DATEPART(HOUR, GETDATE()) AS VARCHAR(2)), 2) +
+            RIGHT('0' + CAST(DATEPART(MINUTE, GETDATE()) AS VARCHAR(2)), 2)
+        )
     );
 
     -- Create indexes
@@ -165,7 +182,7 @@ BEGIN
     SELECT @queue_number = ISNULL(MAX(queue_number), 0) + 1
     FROM patient_queues
     WHERE room_id = @room_id
-    AND CAST(arrival_time AS DATE) = CAST(GETDATE() AS DATE)
+    AND LEFT(arrival_time, 8) = CONVERT(CHAR(8), GETDATE(), 112)
     AND status != 'cancelled';
 
     -- Insert patient into queue
@@ -220,7 +237,11 @@ BEGIN
     IF @current_queue > 0
     BEGIN
         UPDATE patient_queues
-        SET status = 'completed', completed_time = GETDATE()
+        SET status = 'completed', completed_time = (
+            CONVERT(CHAR(8), GETDATE(), 112) +
+            RIGHT('0' + CAST(DATEPART(HOUR, GETDATE()) AS VARCHAR(2)), 2) +
+            RIGHT('0' + CAST(DATEPART(MINUTE, GETDATE()) AS VARCHAR(2)), 2)
+        )
         WHERE room_id = @room_id
         AND queue_number = @current_queue
         AND status = 'active';
@@ -231,7 +252,7 @@ BEGIN
     FROM patient_queues
     WHERE room_id = @room_id
     AND status = 'waiting'
-    AND CAST(arrival_time AS DATE) = CAST(GETDATE() AS DATE)
+    AND LEFT(arrival_time, 8) = CONVERT(CHAR(8), GETDATE(), 112)
     ORDER BY
         CASE priority_level
             WHEN 'emergency' THEN 1
@@ -244,7 +265,11 @@ BEGIN
     BEGIN
         -- Mark patient as active
         UPDATE patient_queues
-        SET status = 'active', called_time = GETDATE()
+        SET status = 'active', called_time = (
+            CONVERT(CHAR(8), GETDATE(), 112) +
+            RIGHT('0' + CAST(DATEPART(HOUR, GETDATE()) AS VARCHAR(2)), 2) +
+            RIGHT('0' + CAST(DATEPART(MINUTE, GETDATE()) AS VARCHAR(2)), 2)
+        )
         WHERE id = @patient_id;
 
         -- Update room's current queue
@@ -294,7 +319,7 @@ SELECT
     MIN(CASE WHEN pq.status = 'waiting' THEN pq.arrival_time END) as oldest_waiting_time
 FROM examination_rooms r
 LEFT JOIN patient_queues pq ON r.id = pq.room_id
-    AND CAST(pq.arrival_time AS DATE) = CAST(GETDATE() AS DATE)
+    AND LEFT(pq.arrival_time, 8) = CONVERT(CHAR(8), GETDATE(), 112)
     AND pq.status IN ('waiting', 'active')
 WHERE r.status = 'active'
 GROUP BY r.id, r.room_number, r.room_name, r.department, r.floor, r.current_queue, r.status;
@@ -313,11 +338,14 @@ SELECT
     ISNULL(SUM(CASE WHEN pq.status = 'waiting' THEN 1 ELSE 0 END), 0) as total_waiting,
     ISNULL(SUM(CASE WHEN pq.status = 'active' THEN 1 ELSE 0 END), 0) as total_active,
     ISNULL(AVG(CASE WHEN pq.status = 'waiting' THEN
-        DATEDIFF(MINUTE, pq.arrival_time, GETDATE())
+        DATEDIFF(MINUTE,
+            CONVERT(DATETIME, STUFF(STUFF(pq.arrival_time, 9, 0, ' '), 12, 0, ':') + ':00', 120),
+            GETDATE()
+        )
     END), 0) as avg_waiting_minutes
 FROM examination_rooms r
 LEFT JOIN patient_queues pq ON r.id = pq.room_id
-    AND CAST(pq.arrival_time AS DATE) = CAST(GETDATE() AS DATE)
+    AND LEFT(pq.arrival_time, 8) = CONVERT(CHAR(8), GETDATE(), 112)
     AND pq.status IN ('waiting', 'active')
 GROUP BY r.department;
 GO
@@ -333,7 +361,11 @@ AFTER UPDATE
 AS
 BEGIN
     UPDATE examination_rooms
-    SET updated_at = GETDATE()
+    SET updated_at = (
+        CONVERT(CHAR(8), GETDATE(), 112) +
+        RIGHT('0' + CAST(DATEPART(HOUR, GETDATE()) AS VARCHAR(2)), 2) +
+        RIGHT('0' + CAST(DATEPART(MINUTE, GETDATE()) AS VARCHAR(2)), 2)
+    )
     FROM examination_rooms er
     INNER JOIN inserted i ON er.id = i.id;
 END;
@@ -350,7 +382,11 @@ AFTER UPDATE
 AS
 BEGIN
     UPDATE department_settings
-    SET updated_at = GETDATE()
+    SET updated_at = (
+        CONVERT(CHAR(8), GETDATE(), 112) +
+        RIGHT('0' + CAST(DATEPART(HOUR, GETDATE()) AS VARCHAR(2)), 2) +
+        RIGHT('0' + CAST(DATEPART(MINUTE, GETDATE()) AS VARCHAR(2)), 2)
+    )
     FROM department_settings ds
     INNER JOIN inserted i ON ds.id = i.id;
 END;

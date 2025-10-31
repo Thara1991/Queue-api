@@ -228,6 +228,60 @@ npm test
 - ESLint configuration for consistent code style
 - Prettier for code formatting
 
+## Debugging
+
+The project is configured for debugging with VS Code and Chrome DevTools.
+
+### Using VS Code Debugger
+
+1. **Open the Debug Panel**
+   - Press `F5` or click the Debug icon in the sidebar
+   - Select a debug configuration from the dropdown
+
+2. **Available Debug Configurations**
+   - **Debug: Start Server** - Start the server with debugging enabled
+   - **Debug: Current File** - Debug the currently open file
+   - **Debug: Server (with nodemon)** - Debug with auto-reload on file changes
+   - **Attach to Process** - Attach debugger to an already running process
+
+3. **Setting Breakpoints**
+   - Click in the gutter (left of line numbers) to set breakpoints
+   - The debugger will pause execution when breakpoints are hit
+
+4. **Debug Controls**
+   - **Continue** (`F5`) - Continue execution
+   - **Step Over** (`F10`) - Execute current line, step over function calls
+   - **Step Into** (`F11`) - Step into function calls
+   - **Step Out** (`Shift+F11`) - Step out of current function
+   - **Restart** (`Ctrl+Shift+F5`) - Restart debugging session
+   - **Stop** (`Shift+F5`) - Stop debugging
+
+### Using Node.js Inspector
+
+Run the server with debugging enabled:
+
+```bash
+npm run debug
+```
+
+Then open Chrome DevTools at `chrome://inspect` or use VS Code's attach configuration.
+
+### Debug Scripts
+
+- `npm run debug` - Start server with inspector (port 9229)
+- `npm run debug-brk` - Start server with inspector and break on start
+
+### Environment Variables
+
+The debugger automatically loads environment variables from `.env` file.
+
+### Tips for Debugging
+
+1. **Database Connections**: Set breakpoints in `config/database.js` to debug connection issues
+2. **API Routes**: Set breakpoints in route handlers to inspect request data
+3. **Validation**: Check validated request bodies after Joi validation middleware
+4. **Error Handling**: Use the debugger to step through error handlers and inspect error objects
+
 ## Deployment
 
 ### Production Considerations

@@ -6,13 +6,12 @@ const { validate, schemas } = require('../middleware/validation');
 router.get('/getPatientList', async (req, res) => {
     try {
         const pool = await getPool();
-        const { ChtNum, AcpDte } = req.params;
+        const { AcpDte } = req.query;
 
         const result = await pool.request()
-            .input('ChtNum', sql.VarChar, ChtNum)
             .input('AcpDte', sql.VarChar, AcpDte)
             .query(`
-                 select  id,  hn, queue_Number queueNumber,  patient_name, 
+    select  id,  hn, queue_Number queueNumber,  patient_name, 
                          IsNull(room_id, '') room,
                         '' roomName, left(arrival_time,8)  pdate, station = '', 
                         status, Right(arrival_time, 4) ptime, department 
@@ -20,29 +19,17 @@ router.get('/getPatientList', async (req, res) => {
                 union 
 				SELECT OcmNum id, OcmChtNum hn,
                          OcmVstNum queueNumber, PbsPatNam + ' ' + PbsSurNam patient_name, 
-                         '' room,
+                         0 room,
                         '' roomName, Left(OcmAcpDtm, 8) pdate, station = IsNull(DtlCodNam, ''), 
                         status = 'waiting', Right(OcmAcpDtm, 4) ptime, OcmDepCod department
-                FROM v_OcmInf --Left Join patient_queues On hn = OcmChtNum
+                FROM v_OcmInf 
                     Left Join BITHIS..DtlMst On DtlTblCOd = 'NRSSTN' And Dtlcod = OcmNrsStn
-                WHERE Left(OcmAcpDtm, 8) = '20251008' And OcmChtnum not in (Select hn From patient_queues  )
+                WHERE Left(OcmAcpDtm, 8) = @AcpDte And OcmChtnum not in (Select hn From patient_queues  )
                 And OcmVstNum <> ''
                 And OcmPatTyp = 'O'
                 order by queue_number
             `);
 
-            // .query(`
-            //     SELECT OcmNum id, OcmChtNum hn,
-            //              OcmVstNum queueNumber, PbsPatNam + ' ' + PbsSurNam patient_name, 
-            //              IsNull(room_id, '') room,
-            //             '' roomName, Left(OcmAcpDtm, 8) pdate, station = IsNull(DtlCodNam, ''), 
-            //             status = 'waiting', Right(OcmAcpDtm, 4) ptime, OcmDepCod department
-            //     FROM v_OcmInf Left Join patient_queues On hn = OcmChtNum
-            //         Left Join BITHIS..DtlMst On DtlTblCOd = 'NRSSTN' And Dtlcod = OcmNrsStn
-            //     WHERE Left(OcmAcpDtm, 8) = '20251008'
-            //     And OcmVstNum <> ''
-            //     And OcmPatTyp = 'O'
-            // `);
 
         res.json({
             success: true,

@@ -11,7 +11,7 @@ router.get('/', validateQuery(querySchemas.roomFilter), async (req, res) => {
 
         let query = `
             SELECT 
-                id, room_number, room_name, department, floor, 
+                id, room_number, room_name = room_name + '-' + department, department, floor, 
                 capacity, status, current_queue, doctor_id,
                 created_at, updated_at
             FROM examination_rooms
