@@ -107,7 +107,7 @@ http://localhost:3000/api/v1
 
 ### Tables
 
-1. **examination_rooms**: Room information and current queue status
+1. **examInfo**: Room information and current queue status
 2. **patient_queues**: Patient queue records with status tracking
 3. **queue_history**: Complete audit trail of all queue actions
 4. **department_settings**: Department-specific configuration
@@ -121,6 +121,18 @@ http://localhost:3000/api/v1
 
 1. **active_room_queues**: Current queue status for all active rooms
 2. **department_stats**: Department-level statistics
+
+### API List
+
+- **kiosk** -> kiosk/getPatientList
+- **queues** -> queues/EnterQueue
+- **rooms** -> rooms/DoctorList
+- **rooms** -> rooms/DoctorAssign
+- **rooms** -> rooms/
+- **dashboard** -> dashboard/dashboardlist
+- **server** -> health
+- **server** -> /
+
 
 ## API Usage Examples
 

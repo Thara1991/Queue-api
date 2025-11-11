@@ -27,12 +27,12 @@ const schemas = {
     addPatientToQueue: Joi.object({
         hn: Joi.string().max(20).required(),
         patient_name: Joi.string().max(200).required(),
-        room_id: Joi.string().max(200).required(),
+        room_id: Joi.number().integer().required(),
         department: Joi.string().max(100).required(),
         priority_level: Joi.string().valid('normal', 'urgent', 'emergency').default('normal'),
         pdate: Joi.string().max(8).default(''),
         ptime: Joi.string().max(8).default(''),
-        status: Joi.string().valid('waiting', 'active', 'completed', 'cancelled').required()
+        status: Joi.string().valid('ADD', 'CALL', 'IN', 'SKIP', 'FIN').default('ADD')
     }),
 
     updateQueueStatus: Joi.object({
@@ -48,8 +48,8 @@ const schemas = {
     createHistoryEntry: Joi.object({
         patient_queue_id: Joi.number().integer().positive().required(),
         action: Joi.string().valid('created', 'called', 'completed', 'cancelled', 'transferred').required(),
-        from_room_id: Joi.string().max(200).allow(null, ''),
-        to_room_id: Joi.string().max(200).allow(null, ''),
+        from_room_id: Joi.number().integer().allow(null),
+        to_room_id: Joi.number().integer().allow(null),
         performed_by: Joi.string().max(50).required(),
         notes: Joi.string().max(500).allow(null, '')
     }),
@@ -138,13 +138,14 @@ const querySchemas = {
     }),
 
     roomFilter: Joi.object({
+        station: Joi.string().max(50),
         department: Joi.string().max(100),
         floor: Joi.string().max(10),
         status: Joi.string().valid('active', 'inactive')
     }),
 
     queueFilter: Joi.object({
-        room_id: Joi.string().max(200),
+        room_id: Joi.number().integer(),
         department: Joi.string().max(100),
         status: Joi.string().valid('waiting', 'active', 'completed', 'cancelled'),
         priority_level: Joi.string().valid('normal', 'urgent', 'emergency'),

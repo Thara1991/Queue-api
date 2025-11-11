@@ -10,8 +10,6 @@ const { testConnection, closePool } = require('./config/database');
 // Import routes
 const roomRoutes = require('./routes/rooms');
 const queueRoutes = require('./routes/queues');
-const historyRoutes = require('./routes/history');
-const statsRoutes = require('./routes/stats');
 const kioskRoutes = require('./routes/kiosk');
 const dashboardRoutes = require('./routes/dashboard');
 
@@ -47,8 +45,6 @@ app.get('/health', (req, res) => {
 const API_VERSION = process.env.API_VERSION || 'v1';
 app.use(`/api/${API_VERSION}/rooms`, roomRoutes);
 app.use(`/api/${API_VERSION}/queues`, queueRoutes);
-app.use(`/api/${API_VERSION}/history`, historyRoutes);
-app.use(`/api/${API_VERSION}/stats`, statsRoutes);
 app.use(`/api/${API_VERSION}/kiosk`, kioskRoutes);
 app.use(`/api/${API_VERSION}/dashboard`, dashboardRoutes);
 
@@ -60,8 +56,6 @@ app.get('/', (req, res) => {
         endpoints: {
             rooms: `/api/${API_VERSION}/rooms`,
             queues: `/api/${API_VERSION}/queues`,
-            history: `/api/${API_VERSION}/history`,
-            stats: `/api/${API_VERSION}/stats`,
             kiosk: `/api/${API_VERSION}/kiosk`,
             dashboard: `/api/${API_VERSION}/dashboard`,
             health: '/health'
