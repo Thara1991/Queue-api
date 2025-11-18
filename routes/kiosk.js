@@ -13,15 +13,15 @@ router.get('/getpatientList', async (req, res) => {
         let query = `
             select  id,  hn, queue_Number queueNumber,  patient_name,
                      IsNull(room_id, 0) room,
-                    '' roomName, left(arrival_time,8)  pdate, station = '',
-                    status, Right(arrival_time, 4) ptime, department
-            from patient_queues
+                    '' roomName, left(arrival_time,8)  pdate, station = DtlCodNam,
+                    status, Right(arrival_time, 4) ptime, department, arrival_time, called_time, exam_time
+            from patient_queues Left Join BITHIS..DtlMst On DtlTblCod = 'NRSSTN' And Dtlcod = department
             union
             SELECT OcmNum id, OcmChtNum hn,
-                    OcmVstNum queueNumber, PbsPatNam + ' ' + PbsSurNam patient_name,
+                    '0' queueNumber, PbsPatNam + ' ' + PbsSurNam patient_name,
                     0 room,
                     '' roomName, Left(OcmAcpDtm, 8) pdate, station = IsNull(DtlCodNam, ''),
-                    status = '', Right(OcmAcpDtm, 4) ptime, OcmDepCod department
+                    status = '', Right(OcmAcpDtm, 4) ptime, OcmNrsStn department, arrival_time = '', called_time = '', exam_time = ''
             FROM v_OcmInf
                 Left Join BITHIS..DtlMst On DtlTblCod = 'NRSSTN' And Dtlcod = OcmNrsStn
             WHERE Left(OcmAcpDtm, 8) = @AcpDte And OcmChtnum not in (Select hn From patient_queues)

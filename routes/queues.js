@@ -7,7 +7,7 @@ const { validate, validateQuery, schemas, querySchemas } = require('../middlewar
 const addPatientToQueueHandler = async (req, res) => {
     try {
         const pool = await getPool();
-        const { hn, patient_name, room_id, department, priority_level, pdate, ptime, status } = req.body;
+        const { hn, patient_name, room_id, department, priority_level, pdate, ptime, status, CurDate } = req.body;
 
         // Check if room exists and is active
         const room = await pool.request()
@@ -36,11 +36,11 @@ const addPatientToQueueHandler = async (req, res) => {
                     .query(`
                         UPDATE patient_queues 
                         SET status = 'FIN', completed_time = CONVERT(CHAR(8), GETDATE(), 112) + RIGHT('0' + CAST(DATEPART(HOUR, GETDATE()) AS VARCHAR(2)), 2) + RIGHT('0' + CAST(DATEPART(MINUTE, GETDATE()) AS VARCHAR(2)), 2)
+                        OUTPUT INSERTED.*
                         WHERE hn = @hn AND department = @department AND status = 'IN'
-                        SELECT @@ROWCOUNT as affected_rows
                     `);
 
-                if (result.recordset[0].affected_rows > 0) {
+                if (result.recordset.length > 0) {
                     // Log the action
                     // await pool.request()
                     //     .input('hn', sql.NVarChar, hn)
@@ -59,12 +59,39 @@ const addPatientToQueueHandler = async (req, res) => {
 
                     res.status(200).json({
                         success: true,
+                        data: result.recordset[0],
                         message: `Patient queue completed successfully`
                     });
                 } else {
                     res.status(404).json({
                         success: false,
                         message: `No active patient queue found for HN: ${hn} in department: ${department}`
+                    });
+                }
+                break;
+
+            case 'CANCEL':
+                // Cancel an existing patient queue by HN/department
+                const cancelResult = await pool.request()
+                    .input('hn', sql.NVarChar, hn)
+                    .input('department', sql.NVarChar, department)
+                    .query(`
+                        UPDATE patient_queues 
+                        SET status = 'CANCEL', completed_time = CONVERT(CHAR(8), GETDATE(), 112) + RIGHT('0' + CAST(DATEPART(HOUR, GETDATE()) AS VARCHAR(2)), 2) + RIGHT('0' + CAST(DATEPART(MINUTE, GETDATE()) AS VARCHAR(2)), 2)
+                        OUTPUT INSERTED.*
+                        WHERE hn = @hn AND department = @department
+                    `);
+
+                if (cancelResult.recordset.length > 0) {
+                    res.status(200).json({
+                        success: true,
+                        data: cancelResult.recordset[0],
+                        message: `Patient queue cancelled successfully`
+                    });
+                } else {
+                    res.status(404).json({
+                        success: false,
+                        message: `Cannot cancel patient queue for HN: ${hn} in department: ${department}`
                     });
                 }
                 break;
@@ -77,11 +104,11 @@ const addPatientToQueueHandler = async (req, res) => {
                     .query(`
                         UPDATE patient_queues 
                         SET status = 'CALL', called_time = CONVERT(CHAR(8), GETDATE(), 112) + RIGHT('0' + CAST(DATEPART(HOUR, GETDATE()) AS VARCHAR(2)), 2) + RIGHT('0' + CAST(DATEPART(MINUTE, GETDATE()) AS VARCHAR(2)), 2)
+                        OUTPUT INSERTED.*
                         WHERE hn = @hn AND department = @department AND status not in ('','FIN','IN')
-                        SELECT @@ROWCOUNT as affected_rows
                     `);
 
-                if (callResult.recordset[0].affected_rows > 0) {
+                if (callResult.recordset.length > 0) {
                     // await pool.request()
                     //     .input('hn', sql.NVarChar, hn)
                     //     .input('department', sql.NVarChar, department)
@@ -99,6 +126,7 @@ const addPatientToQueueHandler = async (req, res) => {
 
                     res.status(200).json({
                         success: true,
+                        data: callResult.recordset[0],
                         message: `Patient called successfully`
                     });
                 } else {
@@ -110,18 +138,37 @@ const addPatientToQueueHandler = async (req, res) => {
                 break;
 
             case 'IN':
+
+                // const examed = await pool.request()
+                // .input('room_id', sql.VarChar, room_id)
+                // .query(`
+                //     SELECT id, room_id, status, current_queue 
+                //     FROM patient_queues 
+                //     WHERE id = @room_id AND status = 'IN'
+                // `);
+                // if (examed.recordset.length > 0) {
+                //     await pool.request()
+                //         .input('id', sql.VarChar, examed.id)
+                //         .input('current_queue', sql.Int, nextQueueNumber)
+                //         .query(`UPDATE patient_queues 
+                //         SET status = 'FIN', completed_time = CONVERT(CHAR(8), GETDATE(), 112) + RIGHT('0' + CAST(DATEPART(HOUR, GETDATE()) AS VARCHAR(2)), 2) + RIGHT('0' + CAST(DATEPART(MINUTE, GETDATE()) AS VARCHAR(2)), 2)
+                //         WHERE id = @id AND status = 'IN'
+                //         `);
+                // }
+
+
                 // Patient in room logic (to be implemented based on FIN pattern)
                 const inResult = await pool.request()
                     .input('hn', sql.NVarChar, hn)
                     .input('department', sql.NVarChar, department)
                     .query(`
                         UPDATE patient_queues 
-                        SET status = 'IN'
+                        SET status = 'IN', exam_time = CONVERT(CHAR(8), GETDATE(), 112) + RIGHT('0' + CAST(DATEPART(HOUR, GETDATE()) AS VARCHAR(2)), 2) + RIGHT('0' + CAST(DATEPART(MINUTE, GETDATE()) AS VARCHAR(2)), 2)
+                        OUTPUT INSERTED.*
                         WHERE hn = @hn AND department = @department AND status IN ('ADD', 'CALL')
-                        SELECT @@ROWCOUNT as affected_rows
                     `);
 
-                if (inResult.recordset[0].affected_rows > 0) {
+                if (inResult.recordset.length > 0) {
                     // await pool.request()
                     //     .input('hn', sql.NVarChar, hn)
                     //     .input('department', sql.NVarChar, department)
@@ -139,6 +186,8 @@ const addPatientToQueueHandler = async (req, res) => {
 
                     res.status(200).json({
                         success: true,
+                        data: inResult.recordset[0],
+                        exam_time: inResult.recordset[0].exam_time,
                         message: `Patient entered room successfully`
                     });
                 } else {
@@ -156,12 +205,12 @@ const addPatientToQueueHandler = async (req, res) => {
                     .input('department', sql.NVarChar, department)
                     .query(`
                         UPDATE patient_queues 
-                        SET status = 'skipped', completed_time = CONVERT(CHAR(8), GETDATE(), 112) + RIGHT('0' + CAST(DATEPART(HOUR, GETDATE()) AS VARCHAR(2)), 2) + RIGHT('0' + CAST(DATEPART(MINUTE, GETDATE()) AS VARCHAR(2)), 2)
-                        WHERE hn = @hn AND department = @department AND status = 'active'
-                        SELECT @@ROWCOUNT as affected_rows
+                        SET status = 'SKIP', completed_time = CONVERT(CHAR(8), GETDATE(), 112) + RIGHT('0' + CAST(DATEPART(HOUR, GETDATE()) AS VARCHAR(2)), 2) + RIGHT('0' + CAST(DATEPART(MINUTE, GETDATE()) AS VARCHAR(2)), 2)
+                        OUTPUT INSERTED.*
+                        WHERE hn = @hn AND department = @department AND status IN ('ADD', 'CALL')
                     `);
 
-                if (skipResult.recordset[0].affected_rows > 0) {
+                if (skipResult.recordset.length > 0) {
                     // await pool.request()
                     //     .input('hn', sql.NVarChar, hn)
                     //     .input('department', sql.NVarChar, department)
@@ -179,6 +228,7 @@ const addPatientToQueueHandler = async (req, res) => {
 
                     res.status(200).json({
                         success: true,
+                        data: skipResult.recordset[0],
                         message: `Patient skipped successfully`
                     });
                 } else {
@@ -191,18 +241,18 @@ const addPatientToQueueHandler = async (req, res) => {
 
             case 'ADD':
             default:
-                // Only for ADD: Check if patient is already in queue for today
-                const todayDate = new Date().toISOString().split('T')[0];
+                // Only for ADD: Check if patient is already in queue for the specified date
+                const queryDate = CurDate || new Date().toISOString().split('T')[0].replace(/-/g, '');
                 const existingQueue = await pool.request()
                     .input('hn', sql.NVarChar, hn)
-                    .input('today', sql.Date, todayDate)
+                    .input('CurDate', sql.VarChar, queryDate)
                     .query(`
                         SELECT id, status, room_id 
                         FROM patient_queues 
                         WHERE hn = @hn 
                         AND arrival_time IS NOT NULL
                         AND LEN(arrival_time) >= 8
-                        AND CAST(SUBSTRING(arrival_time, 1, 8) AS DATE) = @today
+                        AND LEFT(arrival_time, 8) = @CurDate
                         AND status IN ('waiting', 'active')
                     `);
 
@@ -216,15 +266,14 @@ const addPatientToQueueHandler = async (req, res) => {
                 // Get next queue number for the room
                 const nextQueueResult = await pool.request()
                     .input('room_id', sql.Int, room_id)
-                    .input('today', sql.Date, todayDate)
+                    .input('CurDate', sql.VarChar, queryDate)
                     .query(`
                         SELECT ISNULL(MAX(queue_number), 0) + 1 as next_queue_number
                         FROM patient_queues
                         WHERE room_id = @room_id
                         AND arrival_time IS NOT NULL
                         AND LEN(arrival_time) >= 8
-                        AND CAST(SUBSTRING(arrival_time, 1, 8) AS DATE) = @today
-                        AND status != 'cancelled'
+                        AND LEFT(arrival_time, 8) = @CurDate
                     `);
 
                 const nextQueueNumber = nextQueueResult.recordset[0].next_queue_number;
@@ -238,12 +287,11 @@ const addPatientToQueueHandler = async (req, res) => {
                     .input('department', sql.NVarChar, department)
                     .input('priority_level', sql.NVarChar, priority_level)
                     .input('arrival_time', sql.VarChar, `${pdate}${ptime}`)
-                    .input('called_time', sql.VarChar, new Date().toISOString().replace(/[-:T]/g, '').substring(0, 12))
                     .query(`
                         INSERT INTO patient_queues 
-                        (hn, patient_name, room_id, queue_number, department, priority_level, status, arrival_time, called_time)
+                        (hn, patient_name, room_id, queue_number, department, priority_level, status, arrival_time)
                         OUTPUT INSERTED.*
-                        VALUES (@hn, @patient_name, @room_id, @queue_number, @department, @priority_level, 'ADD', @arrival_time, @called_time)
+                        VALUES (@hn, @patient_name, @room_id, @queue_number, @department, @priority_level, 'ADD', @arrival_time)
                     `);
 
                 // Update room's current queue if this is the first patient

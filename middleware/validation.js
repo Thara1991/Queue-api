@@ -32,7 +32,8 @@ const schemas = {
         priority_level: Joi.string().valid('normal', 'urgent', 'emergency').default('normal'),
         pdate: Joi.string().max(8).default(''),
         ptime: Joi.string().max(8).default(''),
-        status: Joi.string().valid('ADD', 'CALL', 'IN', 'SKIP', 'FIN').default('ADD')
+        status: Joi.string().valid('ADD', 'CALL', 'IN', 'SKIP', 'FIN', 'CANCEL').default('ADD'),
+        CurDate: Joi.string().length(8).pattern(/^\d{8}$/).optional()
     }),
 
     updateQueueStatus: Joi.object({
