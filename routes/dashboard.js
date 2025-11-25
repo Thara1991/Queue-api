@@ -89,12 +89,22 @@ router.get('/callqueue', async (req, res) => {
         request.input('id', sql.Int, parseInt(id));
         request.input('called', sql.Char(1), called);
 
-        const query = `
-            UPDATE QNurse.dbo.examinfo 
-            SET Call_Yon = @called, called_times = ISNULL(called_times, 0) + 1
-            WHERE id = @id
-            SELECT @@ROWCOUNT as affected_rows
-        `;
+        let query;
+        if (called === 'Y') {
+            query = `
+                UPDATE QNurse.dbo.examinfo 
+                SET Call_Yon = @called, called_times = ISNULL(called_times, 0) + 1
+                WHERE id = @id
+                SELECT @@ROWCOUNT as affected_rows
+            `;
+        } else {
+            query = `
+                UPDATE QNurse.dbo.examinfo 
+                SET Call_Yon = @called
+                WHERE id = @id
+                SELECT @@ROWCOUNT as affected_rows
+            `;
+        }
 
         const result = await request.query(query);
 
