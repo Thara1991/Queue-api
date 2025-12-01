@@ -16,6 +16,7 @@ router.get('/getpatientList', async (req, res) => {
                     '' roomName, left(arrival_time,8)  pdate, station = DtlCodNam,
                     status, Right(arrival_time, 4) ptime, department, arrival_time, called_time, exam_time
             from patient_queues Left Join BITHIS..DtlMst On DtlTblCod = 'NRSSTN' And Dtlcod = department
+            Where left(arrival_time,8) = @AcpDte
             union
             SELECT OcmNum id, OcmChtNum hn,
                     '0' queueNumber, PbsPatNam + ' ' + PbsSurNam patient_name,

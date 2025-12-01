@@ -13,8 +13,8 @@ const addPatientToQueueHandler = async (req, res) => {
         const room = await pool.request()
             .input('room_id', sql.VarChar, room_id)
             .query(`
-                SELECT id, room_number, status, current_queue 
-                FROM examination_rooms 
+                SELECT id, exam_room, status, current_queue 
+                FROM ExamInfo 
                 WHERE id = @room_id AND status = 'active'
             `);
 
@@ -296,10 +296,10 @@ const addPatientToQueueHandler = async (req, res) => {
 
                 // Update room's current queue if this is the first patient
                 if (room.recordset[0].current_queue === 0) {
-                    await pool.request()
-                        .input('room_id', sql.VarChar, room_id)
-                        .input('current_queue', sql.Int, nextQueueNumber)
-                        .query('UPDATE examination_rooms SET current_queue = @current_queue WHERE room_number = @room_id');
+                    // await pool.examination_roomsrequest()
+                    //     .input('room_id', sql.VarChar, room_id)
+                    //     .input('current_queue', sql.Int, nextQueueNumber)
+                    //     .query('UPDATE  SET current_queue = @current_queue WHERE room_number = @room_id');
                 }
 
                 // Log the action
