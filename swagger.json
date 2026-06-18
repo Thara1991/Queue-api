@@ -1,0 +1,357 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Doctor Desk Navigation System API",
+    "version": "1.0.0",
+    "description": "API documentation for managing hospital examination room queues and patient flow using Express.js and Microsoft SQL Server."
+  },
+  "servers": [
+    {
+      "url": "/api/v1",
+      "description": "API Version 1 Server"
+    },
+    {
+      "url": "/",
+      "description": "Root Server (for health checks)"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": ["General"],
+        "summary": "Server health status",
+        "description": "Returns system status, current server timestamp, uptime, and node environment.",
+        "responses": {
+          "200": {
+            "description": "System is healthy",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "OK" },
+                    "timestamp": { "type": "string", "format": "date-time" },
+                    "uptime": { "type": "number", "example": 12.34 },
+                    "environment": { "type": "string", "example": "development" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rooms/examinationlist": {
+      "get": {
+        "tags": ["Rooms"],
+        "summary": "Get all active examination rooms",
+        "description": "Retrieves the list of active examination rooms, with optional filtering by station code.",
+        "parameters": [
+          {
+            "name": "station",
+            "in": "query",
+            "description": "Station code to filter by",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "id": { "type": "integer", "example": 1 },
+                          "exam_room": { "type": "string", "example": "01" },
+                          "room_name": { "type": "string", "example": "ห้องตรวจ 1" },
+                          "status": { "type": "string", "example": "active" },
+                          "current_queue": { "type": "integer", "example": 102 },
+                          "doctor_id": { "type": "string", "example": "D001" },
+                          "queue_caption": { "type": "string", "example": "A" }
+                        }
+                      }
+                    },
+                    "count": { "type": "integer", "example": 1 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rooms/stationlist": {
+      "get": {
+        "tags": ["Rooms"],
+        "summary": "Get all nursing stations",
+        "description": "Retrieves the list of all nursing stations ordered by sequence.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "type": "array", "items": { "type": "object" } },
+                    "count": { "type": "integer", "example": 5 }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rooms/DoctorList": {
+      "get": {
+        "tags": ["Rooms"],
+        "summary": "Get all doctors",
+        "description": "Retrieves the list of all doctors from view info.",
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "type": "array", "items": { "type": "object" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rooms/DoctorAssign": {
+      "post": {
+        "tags": ["Rooms"],
+        "summary": "Assign doctor to a room",
+        "description": "Assigns a doctor ID to a specific examination room.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["id", "doctor_id"],
+                "properties": {
+                  "id": { "type": "integer", "description": "Examination room ID", "example": 1 },
+                  "doctor_id": { "type": "string", "description": "Doctor Code", "example": "D001" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "message": { "type": "string", "example": "Doctor assigned successfully" }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Room not found"
+          }
+        }
+      }
+    },
+    "/queues/EnterQueue": {
+      "post": {
+        "tags": ["Queues"],
+        "summary": "Enter patient queue / Update queue status",
+        "description": "Adds a new patient to the queue or updates queue status (e.g., ADD, CALL, IN, SKIP, FIN, CANCEL).",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["hn", "patient_name", "room_id", "department"],
+                "properties": {
+                  "hn": { "type": "string", "description": "Hospital Number", "example": "HN001" },
+                  "patient_name": { "type": "string", "description": "Patient Name", "example": "John Doe" },
+                  "room_id": { "type": "integer", "description": "Room ID", "example": 1 },
+                  "department": { "type": "string", "description": "Department code", "example": "อายุรกรรม" },
+                  "priority_level": {
+                    "type": "string",
+                    "enum": ["normal", "urgent", "emergency"],
+                    "default": "normal"
+                  },
+                  "pdate": { "type": "string", "description": "YYYYMMDD format", "default": "" },
+                  "ptime": { "type": "string", "description": "HHMM format", "default": "" },
+                  "status": {
+                    "type": "string",
+                    "enum": ["ADD", "CALL", "IN", "SKIP", "FIN", "CANCEL"],
+                    "default": "ADD"
+                  },
+                  "CurDate": { "type": "string", "description": "YYYYMMDD format override", "example": "20260618" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Queue updated successfully"
+          },
+          "201": {
+            "description": "Patient added to queue successfully"
+          },
+          "409": {
+            "description": "Patient is already in queue"
+          }
+        }
+      }
+    },
+    "/kiosk/getpatientList": {
+      "get": {
+        "tags": ["Kiosk"],
+        "summary": "Get patient list for kiosk",
+        "description": "Retrieves the current patient queue list and unqueued appointment visits for the given date.",
+        "parameters": [
+          {
+            "name": "AcpDte",
+            "in": "query",
+            "description": "Date in YYYYMMDD format",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "20260618"
+            }
+          },
+          {
+            "name": "station",
+            "in": "query",
+            "description": "Nursing station code to filter by",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "type": "array", "items": { "type": "object" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dashboard/dashboardlist": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Get dashboard list",
+        "description": "Retrieves room information and queue status details for dashboard view on the specified date.",
+        "parameters": [
+          {
+            "name": "date",
+            "in": "query",
+            "description": "Date in YYYYMMDD format",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "example": "20260618"
+            }
+          },
+          {
+            "name": "nursestation",
+            "in": "query",
+            "description": "Nursing station code to filter by (optional/commented out in code)",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "example": true },
+                    "data": { "type": "array", "items": { "type": "object" } }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/dashboard/callqueue": {
+      "get": {
+        "tags": ["Dashboard"],
+        "summary": "Update call queue status",
+        "description": "Updates the Call_Yon status and increments called_times for an examination room.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "query",
+            "description": "Examination Room ID",
+            "required": true,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "called",
+            "in": "query",
+            "description": "Call status ('Y' or 'N')",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": ["Y", "N"]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success"
+          },
+          "400": {
+            "description": "Missing or invalid parameters"
+          },
+          "404": {
+            "description": "Room not found"
+          }
+        }
+      }
+    }
+  }
+}

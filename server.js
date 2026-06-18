@@ -3,6 +3,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const swaggerUi = require('swagger-ui-express');
+const swaggerDocument = require('./swagger.json');
 require('dotenv').config();
 
 const { testConnection, closePool } = require('./config/database');
@@ -31,6 +33,9 @@ app.use(morgan('combined'));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
+// Swagger API documentation
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerDocument));
+
 // Health check endpoint
 app.get('/health', (req, res) => {
     res.json({
@@ -58,7 +63,8 @@ app.get('/', (req, res) => {
             queues: `/api/${API_VERSION}/queues`,
             kiosk: `/api/${API_VERSION}/kiosk`,
             dashboard: `/api/${API_VERSION}/dashboard`,
-            health: '/health'
+            health: '/health',
+            docs: '/api-docs'
         }
     });
 });
@@ -122,6 +128,7 @@ const startServer = async () => {
             console.log(`Server is running on port ${PORT}`);
             console.log(`API Version: ${API_VERSION}`);
             console.log(`Environment: ${process.env.NODE_ENV || 'development'}`);
+            console.log(`Swagger UI is available at http://localhost:${PORT}/api-docs`);
         });
     } catch (error) {
         console.error('Failed to start server:', error);

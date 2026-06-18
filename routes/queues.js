@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { getPool, sql } = require('../config/database');
 const { validate, validateQuery, schemas, querySchemas } = require('../middleware/validation');
+const { pushMessage, createQueueNotificationMessage } = require('../services/lineBot');
 
 // Add patient to queue
 const addPatientToQueueHandler = async (req, res) => {
@@ -27,6 +28,17 @@ const addPatientToQueueHandler = async (req, res) => {
 
         console.log('Status received:', status, 'Type:', typeof status);
         
+        // Get LINE user ID from database using HN
+        const line_info = await pool.request()
+            .input('hn', sql.NVarChar, hn)
+            .query(`
+                SELECT TOP 1 User_Account_Value 
+                FROM UserAccountInfo 
+                WHERE User_Code = @hn 
+            `);
+        
+        const lineUserId = line_info.recordset.length > 0 ? line_info.recordset[0].User_Account_Value : null;
+
         switch (status) {
             case 'FIN':
                 // Update existing patient queue to completed status
@@ -57,6 +69,22 @@ const addPatientToQueueHandler = async (req, res) => {
                     //         WHERE pq.hn = @hn AND pq.department = @department
                     //     `);
 
+                    // Send LINE notification
+                    if (lineUserId) {
+                        try {
+                            const roomInfo = room.recordset[0];
+                            const message = createQueueNotificationMessage(
+                                result.recordset[0].patient_name,
+                                result.recordset[0].queue_number,
+                                roomInfo.exam_room || `Room ${room_id}`,
+                                'FIN'
+                            );
+                            await pushMessage(lineUserId, message);
+                        } catch (lineError) {
+                            console.error('LINE notification failed:', lineError);
+                        }
+                    }
+
                     res.status(200).json({
                         success: true,
                         data: result.recordset[0],
@@ -83,6 +111,22 @@ const addPatientToQueueHandler = async (req, res) => {
                     `);
 
                 if (cancelResult.recordset.length > 0) {
+                    // Send LINE notification
+                    if (lineUserId) {
+                        try {
+                            const roomInfo = room.recordset[0];
+                            const message = createQueueNotificationMessage(
+                                cancelResult.recordset[0].patient_name,
+                                cancelResult.recordset[0].queue_number,
+                                roomInfo.exam_room || `Room ${room_id}`,
+                                'CANCEL'
+                            );
+                            await pushMessage(lineUserId, message);
+                        } catch (lineError) {
+                            console.error('LINE notification failed:', lineError);
+                        }
+                    }
+
                     res.status(200).json({
                         success: true,
                         data: cancelResult.recordset[0],
@@ -103,26 +147,39 @@ const addPatientToQueueHandler = async (req, res) => {
                     .input('department', sql.NVarChar, department)
                     .query(`
                         UPDATE patient_queues 
-                        SET status = 'CALL', called_time = CONVERT(CHAR(8), GETDATE(), 112) + RIGHT('0' + CAST(DATEPART(HOUR, GETDATE()) AS VARCHAR(2)), 2) + RIGHT('0' + CAST(DATEPART(MINUTE, GETDATE()) AS VARCHAR(2)), 2)
+                        SET status = 'CALL'
+                        , called_time = ISNULL(NULLIF(called_time, ''), CONVERT(CHAR(8), GETDATE(), 112) + RIGHT('0' + CAST(DATEPART(HOUR, GETDATE()) AS VARCHAR(2)), 2) + RIGHT('0' + CAST(DATEPART(MINUTE, GETDATE()) AS VARCHAR(2)), 2))
                         OUTPUT INSERTED.*
                         WHERE hn = @hn AND department = @department AND status not in ('','FIN','IN')
                     `);
 
                 if (callResult.recordset.length > 0) {
-                    // await pool.request()
-                    //     .input('hn', sql.NVarChar, hn)
-                    //     .input('department', sql.NVarChar, department)
-                    //     .input('action', sql.NVarChar, 'called')
-                    //     .input('to_room_id', sql.Int, room_id)
-                    //     .input('performed_by', sql.NVarChar, 'SYSTEM')
-                    //     .input('notes', sql.NVarChar, `Patient called`)
-                    //     .query(`
-                    //         INSERT INTO queue_history 
-                    //         (patient_queue_id, action, to_room_id, performed_by, notes)
-                    //         SELECT pq.id, @action, @to_room_id, @performed_by, @notes
-                    //         FROM patient_queues pq
-                    //         WHERE pq.hn = @hn AND pq.department = @department
-                    //     `);
+                    await pool.request()
+                        .input('hn', sql.NVarChar, hn)
+                        .input('queue', sql.NVarChar, callResult.recordset[0].queue_number)  
+                        .input('room_id', sql.Int, callResult.recordset[0].room_id)     
+                        .query(`
+                            Update ExamInfo 
+                            Set call_queue = @queue 
+                            , current_queue = @queue
+                            WHERE id = @room_id 
+                        `);
+
+                    // Send LINE notification
+                    if (lineUserId) {
+                        try {
+                            const roomInfo = room.recordset[0];
+                            const message = createQueueNotificationMessage(
+                                callResult.recordset[0].patient_name,
+                                callResult.recordset[0].queue_number,
+                                roomInfo.exam_room || `Room ${callResult.recordset[0].room_id}`,
+                                'CALL'
+                            );
+                            await pushMessage(lineUserId, message);
+                        } catch (lineError) {
+                            console.error('LINE notification failed:', lineError);
+                        }
+                    }
 
                     res.status(200).json({
                         success: true,
@@ -139,24 +196,6 @@ const addPatientToQueueHandler = async (req, res) => {
 
             case 'IN':
 
-                // const examed = await pool.request()
-                // .input('room_id', sql.VarChar, room_id)
-                // .query(`
-                //     SELECT id, room_id, status, current_queue 
-                //     FROM patient_queues 
-                //     WHERE id = @room_id AND status = 'IN'
-                // `);
-                // if (examed.recordset.length > 0) {
-                //     await pool.request()
-                //         .input('id', sql.VarChar, examed.id)
-                //         .input('current_queue', sql.Int, nextQueueNumber)
-                //         .query(`UPDATE patient_queues 
-                //         SET status = 'FIN', completed_time = CONVERT(CHAR(8), GETDATE(), 112) + RIGHT('0' + CAST(DATEPART(HOUR, GETDATE()) AS VARCHAR(2)), 2) + RIGHT('0' + CAST(DATEPART(MINUTE, GETDATE()) AS VARCHAR(2)), 2)
-                //         WHERE id = @id AND status = 'IN'
-                //         `);
-                // }
-
-
                 // Patient in room logic (to be implemented based on FIN pattern)
                 const inResult = await pool.request()
                     .input('hn', sql.NVarChar, hn)
@@ -169,6 +208,18 @@ const addPatientToQueueHandler = async (req, res) => {
                     `);
 
                 if (inResult.recordset.length > 0) {
+                    await pool.request()
+                        .input('room_id', sql.Int, inResult.recordset[0].room_id)
+                        .input('queue', sql.Int, inResult.recordset[0].queue_number)
+                        .query(`
+                            Update ExamInfo 
+                            Set called_times = 0
+                            , call_queue = ''
+                            , current_queue = @queue
+                            WHERE id = @room_id 
+                        `);
+
+
                     // await pool.request()
                     //     .input('hn', sql.NVarChar, hn)
                     //     .input('department', sql.NVarChar, department)
@@ -183,6 +234,22 @@ const addPatientToQueueHandler = async (req, res) => {
                     //         FROM patient_queues pq
                     //         WHERE pq.hn = @hn AND pq.department = @department
                     //     `);
+
+                    // Send LINE notification
+                    if (lineUserId) {
+                        try {
+                            const roomInfo = room.recordset[0];
+                            const message = createQueueNotificationMessage(
+                                inResult.recordset[0].patient_name,
+                                inResult.recordset[0].queue_number,
+                                roomInfo.exam_room || `Room ${inResult.recordset[0].room_id}`,
+                                'IN'
+                            );
+                            await pushMessage(lineUserId, message);
+                        } catch (lineError) {
+                            console.error('LINE notification failed:', lineError);
+                        }
+                    }
 
                     res.status(200).json({
                         success: true,
@@ -225,6 +292,22 @@ const addPatientToQueueHandler = async (req, res) => {
                     //         FROM patient_queues pq
                     //         WHERE pq.hn = @hn AND pq.department = @department
                     //     `);
+
+                    // Send LINE notification
+                    if (lineUserId) {
+                        try {
+                            const roomInfo = room.recordset[0];
+                            const message = createQueueNotificationMessage(
+                                skipResult.recordset[0].patient_name,
+                                skipResult.recordset[0].queue_number,
+                                roomInfo.exam_room || `Room ${room_id}`,
+                                'SKIP'
+                            );
+                            await pushMessage(lineUserId, message);
+                        } catch (lineError) {
+                            console.error('LINE notification failed:', lineError);
+                        }
+                    }
 
                     res.status(200).json({
                         success: true,
@@ -314,6 +397,23 @@ const addPatientToQueueHandler = async (req, res) => {
                 //         (patient_queue_id, action, to_room_id, performed_by, notes)
                 //         VALUES (@patient_queue_id, @action, @to_room_id, @performed_by, @notes)
                 //     `);
+
+                // Send LINE notification
+                if (lineUserId) {
+                    try {
+                        const roomInfo = room.recordset[0];
+                        const message = createQueueNotificationMessage(
+                            patient_name,
+                            nextQueueNumber,
+                            roomInfo.exam_room || `Room ${room_id}`,
+                            'ADD'
+                        );
+                        await pushMessage(lineUserId, message);
+                    } catch (lineError) {
+                        console.error('LINE notification failed:', lineError);
+                        // Don't fail the request if LINE fails
+                    }
+                }
 
                 res.status(201).json({
                     success: true,

@@ -76,7 +76,7 @@ router.get('/examinationlist', validateQuery(querySchemas.roomFilter), async (re
         const { station } = req.query;
 
         let query = `
-            SELECT id, exam_room, room_name, status, current_queue, doctor_id, created_at, updated_at
+            SELECT id, exam_room, room_name, status, current_queue, doctor_id, created_at, updated_at, queue_caption
             FROM examinfo
             WHERE 1=1
         `;

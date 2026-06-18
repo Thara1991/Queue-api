@@ -21,6 +21,7 @@ router.get('/dashboardlist', async (req, res) => {
             E.updated_at,
             E.Call_yon,
             E.Called_times,
+            E.Call_queue,
             ISNULL(P.id, '') as queue_id,
             ISNULL(P.hn, '') as hn,
             ISNULL(P.patient_name, '') as patient_name,
@@ -39,6 +40,7 @@ router.get('/dashboardlist', async (req, res) => {
                 AND LEN(P.arrival_time) >= 8
                 AND LEFT(P.arrival_time, 8) = @date
                 And P.status not in ('FIN','SKIP','CANCEL','ADD')
+                And P.queue_number  = current_queue
             LEFT JOIN V_DocInf on UidCod = E.doctor_id
             WHERE ISNULL(E.doctor_id, '') <> '' 
             AND E.status = 'active'
